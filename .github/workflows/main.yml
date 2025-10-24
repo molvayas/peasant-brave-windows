@@ -22,8 +22,10 @@ jobs:
         run: |
           if ("${{ github.event.inputs.brave_version }}" -ne "") {
             $VERSION = "${{ github.event.inputs.brave_version }}"
-          } else {
+          } elseif ("${{ github.ref_type }}" -eq "tag") {
             $VERSION = "${{ github.ref_name }}"
+          } else {
+            $VERSION = (Get-Content brave_version.txt).Trim()
           }
           echo "BRAVE_VERSION=$VERSION" >> $env:GITHUB_OUTPUT
           echo "Building Brave version: $VERSION"

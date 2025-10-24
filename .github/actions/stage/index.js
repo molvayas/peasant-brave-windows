@@ -24,10 +24,11 @@ async function run() {
     const artifact = new DefaultArtifactClient();
     const artifactName = 'build-artifact';
     const workDir = 'C:\\brave-build';
-    const braveDir = path.join(workDir, 'src', 'brave');
+    const srcDir = path.join(workDir, 'src');
+    const braveDir = path.join(srcDir, 'brave');
 
     try {
-        await io.mkdirP(workDir);
+        await io.mkdirP(srcDir);
     } catch (e) {
         console.log('Work directory already exists');
     }
@@ -45,31 +46,32 @@ async function run() {
             throw e;
         }
     } else {
-        // First stage: clone brave-core and initialize
+        // First stage: clone brave-core and initialize following official structure
         console.log('Initializing Brave build environment...');
+        
+        // Set environment variables for Brave build
+        core.exportVariable('DEPOT_TOOLS_WIN_TOOLCHAIN', '0');
+        core.exportVariable('PYTHONUNBUFFERED', '1');
+        core.exportVariable('GSUTIL_ENABLE_LUCI_AUTH', '0');
         
         // Install depot_tools dependencies
         await exec.exec('python', ['-m', 'pip', 'install', 'httplib2==0.22.0'], {
             ignoreReturnCode: true
         });
 
-        // Clone brave-core
-        await exec.exec('git', ['clone', '--branch', brave_version, 
+        // Clone brave-core to src/brave (following official structure)
+        console.log(`Cloning brave-core ${brave_version} to ${braveDir}...`);
+        await exec.exec('git', ['clone', '--branch', brave_version, '--depth=1',
             'https://github.com/brave/brave-core.git', braveDir], {
-            cwd: workDir,
             ignoreReturnCode: true
         });
 
-        // Install npm dependencies
+        // Install npm dependencies in brave-core
+        console.log('Installing npm dependencies...');
         await exec.exec('npm', ['install'], {
             cwd: braveDir,
             ignoreReturnCode: true
         });
-
-        // Set environment variables for Brave build
-        core.exportVariable('DEPOT_TOOLS_WIN_TOOLCHAIN', '0');
-        core.exportVariable('PYTHONUNBUFFERED', '1');
-        core.exportVariable('GSUTIL_ENABLE_LUCI_AUTH', '0');
     }
 
     // Create a marker file to track build progress
@@ -90,9 +92,10 @@ async function run() {
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
+        // Note: We don't pass target_os/target_arch on Windows, it auto-detects
         if (currentStage === 'init') {
-            console.log('Running npm run init...');
-            const initCode = await exec.exec('npm', ['run', 'init', '--', '--target_os=win'], {
+            console.log('Running npm run init with --no-history...');
+            const initCode = await exec.exec('npm', ['run', 'init', '--', '--no-history'], {
                 cwd: braveDir,
                 timeout: timeout - (Date.now() - startTime),
                 ignoreReturnCode: true
