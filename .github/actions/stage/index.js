@@ -71,7 +71,7 @@ async function run() {
 
         // Clone brave-core to src/brave (following official structure)
         console.log(`Cloning brave-core ${brave_version} to ${braveDir}...`);
-        await exec.exec('git', ['clone', '--branch', brave_version, '--depth=1',
+        await exec.exec('git', ['clone', '--branch', brave_version, '--depth=2',
             'https://github.com/brave/brave-core.git', braveDir], {
             ignoreReturnCode: true
         });
