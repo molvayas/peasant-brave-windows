@@ -12,9 +12,19 @@ async function run() {
     
     const finished = core.getBooleanInput('finished', {required: true});
     const from_artifact = core.getBooleanInput('from_artifact', {required: true});
-    const brave_version = core.getInput('brave_version', {required: true});
     
-    console.log(`finished: ${finished}, from_artifact: ${from_artifact}, brave_version: ${brave_version}`);
+    // Read Brave version from brave_version.txt in the repository
+    const versionFile = path.join('C:\\peasant-brave-windows', 'brave_version.txt');
+    let brave_version = '';
+    try {
+        brave_version = (await fs.readFile(versionFile, 'utf-8')).trim();
+        console.log(`Building Brave version: ${brave_version} (from brave_version.txt)`);
+    } catch (e) {
+        core.setFailed(`Failed to read brave_version.txt: ${e.message}`);
+        return;
+    }
+    
+    console.log(`finished: ${finished}, from_artifact: ${from_artifact}`);
     
     if (finished) {
         core.setOutput('finished', true);

@@ -45,28 +45,51 @@ The custom action manages:
 
 ## Usage
 
-### Trigger Build
+### Configure Version
 
-**Via Git Tag:**
+Edit `brave_version.txt` to specify which Brave version to build:
+
 ```bash
-git tag v1.71.121
-git push origin v1.71.121
+echo "1.85.74" > brave_version.txt
+git add brave_version.txt
+git commit -m "Update Brave version to 1.85.74"
+git push
 ```
 
-**Via Workflow Dispatch:**
+### Trigger Build
+
+**Method 1: Push to main branch**
+```bash
+# Modify brave_version.txt and push
+echo "1.85.74" > brave_version.txt
+git add brave_version.txt
+git commit -m "Build Brave 1.85.74"
+git push origin main
+```
+
+**Method 2: Workflow Dispatch**
 1. Go to Actions tab
 2. Select "Build Brave Browser" workflow
 3. Click "Run workflow"
-4. Enter Brave version tag (e.g., `v1.71.121`)
+4. Select branch and click "Run workflow"
+
+The workflow **always** reads the version from `brave_version.txt` - there are no version parameters or tags.
 
 ### Version Format
 
-Use Brave's release tags from https://github.com/brave/brave-core/tags
+Use Brave's release version numbers from https://github.com/brave/brave-core/tags
+
+**Format**: Just the version number without 'v' prefix
 
 Examples:
-- `v1.71.121`
-- `v1.70.126`
-- `v1.69.168`
+- `1.85.74` ✓
+- `1.71.121` ✓
+- `1.70.126` ✓
+
+**Not**:
+- `v1.85.74` ✗ (no 'v' prefix)
+
+**Note**: The workflow uses `--depth=1` and `--no-history` flags to reduce download size from ~60GB to ~10GB.
 
 ## Build Output
 

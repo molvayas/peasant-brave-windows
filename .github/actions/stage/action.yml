@@ -7,9 +7,6 @@ inputs:
   from_artifact:
     description: If a previous stage already uploaded build artifacts, the stage will resume building
     required: true
-  brave_version:
-    description: Brave version tag to build
-    required: true
 outputs:
   finished:
     description: Whether the build has finished successfully

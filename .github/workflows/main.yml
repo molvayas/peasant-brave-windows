@@ -1,14 +1,9 @@
 name: Build Brave Browser
 on:  
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      brave_version:
-        description: 'Brave version tag (e.g., v1.71.121)'
-        required: true
-        type: string
 
 jobs:
   build-1:
@@ -16,19 +11,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set version
-        id: version
-        shell: pwsh
-        run: |
-          if ("${{ github.event.inputs.brave_version }}" -ne "") {
-            $VERSION = "${{ github.event.inputs.brave_version }}"
-          } elseif ("${{ github.ref_type }}" -eq "tag") {
-            $VERSION = "${{ github.ref_name }}"
-          } else {
-            $VERSION = (Get-Content brave_version.txt).Trim()
-          }
-          echo "BRAVE_VERSION=$VERSION" >> $env:GITHUB_OUTPUT
-          echo "Building Brave version: $VERSION"
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -48,10 +30,8 @@ jobs:
         with:
           finished: false
           from_artifact: false
-          brave_version: ${{ steps.version.outputs.BRAVE_VERSION }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
-      brave_version: ${{ steps.version.outputs.BRAVE_VERSION }}
 
   build-2:
     needs: build-1
@@ -78,7 +58,6 @@ jobs:
         with:
           finished: ${{ needs.build-1.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-1.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -107,7 +86,6 @@ jobs:
         with:
           finished: ${{ needs.build-2.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-2.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -136,7 +114,6 @@ jobs:
         with:
           finished: ${{ needs.build-3.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-3.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -165,7 +142,6 @@ jobs:
         with:
           finished: ${{ needs.build-4.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-4.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -194,7 +170,6 @@ jobs:
         with:
           finished: ${{ needs.build-5.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-5.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -223,7 +198,6 @@ jobs:
         with:
           finished: ${{ needs.build-6.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-6.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
@@ -252,7 +226,6 @@ jobs:
         with:
           finished: ${{ needs.build-7.outputs.finished }}
           from_artifact: true
-          brave_version: ${{ needs.build-7.outputs.brave_version }}
     outputs:
       finished: ${{ steps.stage.outputs.finished }}
 
