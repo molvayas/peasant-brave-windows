@@ -141,7 +141,7 @@ async function run() {
         // Brave uses tags with 'v' prefix (e.g., v1.85.74)
         const braveTag = brave_version.startsWith('v') ? brave_version : `v${brave_version}`;
         console.log(`Cloning brave-core tag ${braveTag} to ${braveDir}...`);
-        await exec.exec('git', ['clone', '--branch', braveTag, '--depth=1',
+        await exec.exec('git', ['clone', '--branch', braveTag, '--depth=2',
             'https://github.com/brave/brave-core.git', braveDir], {
             ignoreReturnCode: true
         });
