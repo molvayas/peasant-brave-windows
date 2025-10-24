@@ -8,7 +8,7 @@ const path = require('path');
 const child_process = require('child_process');
 
 /**
- * Run a command with timeout (like ungoogled-chromium's _run_build_process_timeout)
+ * Run a command with timeout (Windows-compatible, like ungoogled-chromium's _run_build_process_timeout)
  * @param {string} command - Command to run
  * @param {string[]} args - Command arguments
  * @param {object} options - Options including cwd and timeout in milliseconds
@@ -19,44 +19,59 @@ async function execWithTimeout(command, args, options = {}) {
     
     return new Promise((resolve) => {
         console.log(`Running: ${command} ${args.join(' ')}`);
-        console.log(`Timeout: ${(timeout / 3600000).toFixed(1)} hours`);
+        console.log(`Timeout: ${(timeout / 60000).toFixed(0)} minutes (${(timeout / 3600000).toFixed(2)} hours)`);
         
         const child = child_process.spawn(command, args, {
             cwd: cwd,
             stdio: 'inherit',
-            shell: true
+            shell: true,
+            windowsHide: false
         });
         
         let killed = false;
-        const timer = setTimeout(() => {
-            console.log(`\n⏱️ Timeout reached after ${(timeout / 3600000).toFixed(1)} hours`);
-            console.log('Gracefully stopping build process...');
+        
+        const timer = setTimeout(async () => {
+            console.log(`\n⏱️ Timeout reached after ${(timeout / 60000).toFixed(0)} minutes`);
+            console.log('Attempting graceful shutdown (like Python version)...');
             killed = true;
             
-            // Try graceful shutdown first (SIGTERM)
+            // Try graceful shutdown first (no /F flag)
             try {
-                process.kill(-child.pid, 'SIGTERM');
+                console.log(`Attempt 1/3: Sending termination signal to PID ${child.pid}...`);
+                child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
+                
+                // Wait 3 seconds
+                await new Promise(r => setTimeout(r, 10000));
+                
+                console.log(`Attempt 2/3: Sending termination signal to PID ${child.pid}...`);
+                child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
+                
+                // Wait 3 seconds
+                await new Promise(r => setTimeout(r, 10000));
+                
+                console.log(`Attempt 3/3: Sending termination signal to PID ${child.pid}...`);
+                child_process.execSync(`taskkill /T /PID ${child.pid}`, {stdio: 'inherit'});
+                
+                // Wait 10 seconds for graceful shutdown
+                await new Promise(r => setTimeout(r, 10000));
+                
             } catch (e) {
-                console.log('SIGTERM failed, trying SIGKILL');
-                try {
-                    process.kill(-child.pid, 'SIGKILL');
-                } catch (e2) {
-                    console.log('Process already exited');
-                }
+                console.log(`Graceful shutdown signal sent (or process already exited)`);
             }
             
-            // Force kill after 30 seconds if still running
-            setTimeout(() => {
-                try {
-                    process.kill(-child.pid, 'SIGKILL');
-                } catch (e) {
-                    // Already dead
-                }
-            }, 30000);
+            // If still running, force kill
+            try {
+                console.log('Force killing remaining processes...');
+                child_process.execSync(`taskkill /T /F /PID ${child.pid}`, {stdio: 'inherit'});
+                console.log('Process tree forcefully terminated');
+            } catch (e) {
+                console.log(`Force kill not needed (process already exited)`);
+            }
         }, timeout);
         
         child.on('exit', (code) => {
             clearTimeout(timer);
+            
             if (killed) {
                 console.log('Build process stopped due to timeout');
                 resolve(999); // Special code for timeout
@@ -197,34 +212,45 @@ async function run() {
         // Timeout = 4.5 hours - time already spent in this job
         if (currentStage === 'build') {
             const elapsedTime = Date.now() - JOB_START_TIME;
-            const remainingTime = MAX_JOB_TIME - elapsedTime;
+            let remainingTime = MAX_JOB_TIME - elapsedTime;
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
-            console.log(`Remaining time for build: ${(remainingTime / 3600000).toFixed(2)} hours`);
+            console.log(`Remaining time calculated: ${(remainingTime / 3600000).toFixed(2)} hours`);
+            
+            // Apply timeout rules:
+            // 1. If remaining time < 0, set to 15 minutes
+            // 2. Minimum timeout is 20 minutes
+            const MIN_TIMEOUT = 20 * 60 * 1000; // 20 minutes
+            const FALLBACK_TIMEOUT = 15 * 60 * 1000; // 15 minutes
             
             if (remainingTime <= 0) {
-                console.log('⏱️ No time remaining in job - creating checkpoint');
+                console.log('⚠️ Calculated time is negative, setting to 15 minutes');
+                remainingTime = FALLBACK_TIMEOUT;
+            } else if (remainingTime < MIN_TIMEOUT) {
+                console.log('⚠️ Calculated time is less than minimum, setting to 20 minutes');
+                remainingTime = MIN_TIMEOUT;
+            }
+            
+            console.log(`Final timeout: ${(remainingTime / 60000).toFixed(0)} minutes`);
+            console.log('Running npm run build (component build)...');
+            
+            const buildCode = await execWithTimeout('npm', ['run', 'build'], {
+                cwd: braveDir,
+                timeout: remainingTime
+            });
+            
+            if (buildCode === 0) {
+                console.log('✓ npm run build completed successfully');
+                await fs.writeFile(markerFile, 'package');
+                currentStage = 'package';
+                buildSuccess = true;
+            } else if (buildCode === 999) {
+                console.log('⏱️ npm run build timed out - will resume in next stage');
+                // Stay in build stage for next run
             } else {
-                console.log('Running npm run build (component build)...');
-                
-                const buildCode = await execWithTimeout('npm', ['run', 'build'], {
-                    cwd: braveDir,
-                    timeout: remainingTime
-                });
-                
-                if (buildCode === 0) {
-                    console.log('✓ npm run build completed successfully');
-                    await fs.writeFile(markerFile, 'package');
-                    currentStage = 'package';
-                    buildSuccess = true;
-                } else if (buildCode === 999) {
-                    console.log('⏱️ npm run build timed out - will resume in next stage');
-                    // Stay in build stage for next run
-                } else {
-                    console.log(`✗ npm run build failed with code ${buildCode}`);
-                    // Stay in build stage to retry
-                }
+                console.log(`✗ npm run build failed with code ${buildCode}`);
+                // Stay in build stage to retry
             }
         }
 
