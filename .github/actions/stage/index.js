@@ -183,7 +183,7 @@ async function run() {
 
     let buildSuccess = false;
     const JOB_START_TIME = Date.now();
-    const MAX_JOB_TIME = 15 * 60 * 1000; // 4.5 hours total for the job
+    const MAX_JOB_TIME = 315 * 60 * 1000; // 4.5 hours total for the job
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
@@ -259,31 +259,36 @@ async function run() {
     }
 
     if (buildSuccess && currentStage === 'package') {
-        console.log('Build completed successfully, uploading final artifacts...');
-        
-        // Find built executables and installers
-        const globber = await glob.create(path.join(workDir, 'src', 'out', 'Release', '*.exe'), {
-            matchDirectories: false
-        });
-        const installerGlobber = await glob.create(path.join(workDir, 'src', 'out', 'Release', 'BraveBrowser*.exe'), {
-            matchDirectories: false
-        });
-        
-        let packageList = await installerGlobber.glob();
-        
-        if (packageList.length === 0) {
-            console.log('No installer found, packaging brave.exe...');
-            // Package the browser executable
-            const outDir = path.join(workDir, 'src', 'out', 'Release');
-            await exec.exec('7z', ['a', '-tzip', 
-                path.join(workDir, `brave-browser-${brave_version}-win-x64.zip`),
-                path.join(outDir, 'brave.exe'),
-                path.join(outDir, '*.dll'),
-                path.join(outDir, '*.pak'),
-                path.join(outDir, 'locales'),
-                '-mx=5'], {ignoreReturnCode: true});
-            packageList = [path.join(workDir, `brave-browser-${brave_version}-win-x64.zip`)];
-        }
+        console.log('Build completed successfully, creating archive of entire out folder...');
+
+        // Archive the entire out folder as a zip
+        const outDir = path.join(workDir, 'src', 'out');
+        const packageZip = path.join(workDir, `brave-browser-${brave_version}-win-x64.zip`);
+        await exec.exec('7z', ['a', '-tzip', packageZip, outDir, '-mx=5'], {ignoreReturnCode: true});
+
+        // // Find built executables and installers
+        // const globber = await glob.create(path.join(workDir, 'src', 'out', 'Release', '*.exe'), {
+        //     matchDirectories: false
+        // });
+        // const installerGlobber = await glob.create(path.join(workDir, 'src', 'out', 'Release', 'BraveBrowser*.exe'), {
+        //     matchDirectories: false
+        // });
+        // 
+        // let packageList = await installerGlobber.glob();
+        // 
+        // if (packageList.length === 0) {
+        //     console.log('No installer found, packaging brave.exe...');
+        //     // Package the browser executable
+        //     const outDir = path.join(workDir, 'src', 'out', 'Release');
+        //     await exec.exec('7z', ['a', '-tzip', 
+        //         path.join(workDir, `brave-browser-${brave_version}-win-x64.zip`),
+        //         path.join(outDir, 'brave.exe'),
+        //         path.join(outDir, '*.dll'),
+        //         path.join(outDir, '*.pak'),
+        //         path.join(outDir, 'locales'),
+        //         '-mx=5'], {ignoreReturnCode: true});
+        //     packageList = [path.join(workDir, `brave-browser-${brave_version}-win-x64.zip`)];
+        // }
 
         // Upload final artifact
         for (let i = 0; i < 5; ++i) {
@@ -293,8 +298,12 @@ async function run() {
                 // ignored
             }
             try {
-                await artifact.uploadArtifact('brave-browser', packageList, workDir, 
-                    {retentionDays: 7, compressionLevel: 0});
+                await artifact.uploadArtifact(
+                    'brave-browser',
+                    [packageZip],
+                    workDir,
+                    {retentionDays: 7, compressionLevel: 0}
+                );
                 console.log('Successfully uploaded final artifact');
                 break;
             } catch (e) {
@@ -302,7 +311,7 @@ async function run() {
                 await new Promise(r => setTimeout(r, 10000));
             }
         }
-        
+
         core.setOutput('finished', true);
     } else {
         console.log('Build incomplete, creating checkpoint artifact...');
