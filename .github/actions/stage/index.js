@@ -124,9 +124,9 @@ async function run() {
             console.log('Running npm run build...');
             
             // Configure build to be incremental
-            const buildCode = await exec.exec('npm', ['run', 'build', '--', 'Release'], {
+            const buildCode = await exec.exec('npm', ['run', 'build'], {
                 cwd: braveDir,
-                timeout: timeout - (Date.now() - startTime),
+                timeout: 60*10,
                 ignoreReturnCode: true
             });
             
