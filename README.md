@@ -79,15 +79,15 @@ The workflow **always** reads the version from `brave_version.txt` - there are n
 
 Use Brave's release version numbers from https://github.com/brave/brave-core/tags
 
-**Format**: Just the version number without 'v' prefix
+**Format**: Version number without 'v' prefix (the action will add 'v' when cloning)
 
 Examples:
-- `1.85.74` ✓
-- `1.71.121` ✓
-- `1.70.126` ✓
+- `1.85.74` → clones tag `v1.85.74` ✓
+- `1.71.121` → clones tag `v1.71.121` ✓
+- `1.70.126` → clones tag `v1.70.126` ✓
 
-**Not**:
-- `v1.85.74` ✗ (no 'v' prefix)
+You can also use the full tag name:
+- `v1.85.74` → clones tag `v1.85.74` ✓
 
 **Note**: The workflow uses `--depth=1` and `--no-history` flags to reduce download size from ~60GB to ~10GB.
 

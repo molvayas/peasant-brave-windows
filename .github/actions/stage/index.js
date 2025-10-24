@@ -5,6 +5,74 @@ const {DefaultArtifactClient} = require('@actions/artifact');
 const glob = require('@actions/glob');
 const fs = require('fs').promises;
 const path = require('path');
+const child_process = require('child_process');
+
+/**
+ * Run a command with timeout (like ungoogled-chromium's _run_build_process_timeout)
+ * @param {string} command - Command to run
+ * @param {string[]} args - Command arguments
+ * @param {object} options - Options including cwd and timeout in milliseconds
+ * @returns {Promise<number>} Exit code (999 if timeout)
+ */
+async function execWithTimeout(command, args, options = {}) {
+    const {cwd, timeout} = options;
+    
+    return new Promise((resolve) => {
+        console.log(`Running: ${command} ${args.join(' ')}`);
+        console.log(`Timeout: ${(timeout / 3600000).toFixed(1)} hours`);
+        
+        const child = child_process.spawn(command, args, {
+            cwd: cwd,
+            stdio: 'inherit',
+            shell: true
+        });
+        
+        let killed = false;
+        const timer = setTimeout(() => {
+            console.log(`\n⏱️ Timeout reached after ${(timeout / 3600000).toFixed(1)} hours`);
+            console.log('Gracefully stopping build process...');
+            killed = true;
+            
+            // Try graceful shutdown first (SIGTERM)
+            try {
+                process.kill(-child.pid, 'SIGTERM');
+            } catch (e) {
+                console.log('SIGTERM failed, trying SIGKILL');
+                try {
+                    process.kill(-child.pid, 'SIGKILL');
+                } catch (e2) {
+                    console.log('Process already exited');
+                }
+            }
+            
+            // Force kill after 30 seconds if still running
+            setTimeout(() => {
+                try {
+                    process.kill(-child.pid, 'SIGKILL');
+                } catch (e) {
+                    // Already dead
+                }
+            }, 30000);
+        }, timeout);
+        
+        child.on('exit', (code) => {
+            clearTimeout(timer);
+            if (killed) {
+                console.log('Build process stopped due to timeout');
+                resolve(999); // Special code for timeout
+            } else {
+                console.log(`Process exited with code: ${code}`);
+                resolve(code || 0);
+            }
+        });
+        
+        child.on('error', (err) => {
+            clearTimeout(timer);
+            console.error(`Process error: ${err.message}`);
+            resolve(1);
+        });
+    });
+}
 
 async function run() {
     process.on('SIGINT', function() {
@@ -70,8 +138,10 @@ async function run() {
         });
 
         // Clone brave-core to src/brave (following official structure)
-        console.log(`Cloning brave-core ${brave_version} to ${braveDir}...`);
-        await exec.exec('git', ['clone', '--branch', brave_version, '--depth=2',
+        // Brave uses tags with 'v' prefix (e.g., v1.85.74)
+        const braveTag = brave_version.startsWith('v') ? brave_version : `v${brave_version}`;
+        console.log(`Cloning brave-core tag ${braveTag} to ${braveDir}...`);
+        await exec.exec('git', ['clone', '--branch', braveTag, '--depth=1',
             'https://github.com/brave/brave-core.git', braveDir], {
             ignoreReturnCode: true
         });
@@ -97,45 +167,64 @@ async function run() {
     }
 
     let buildSuccess = false;
-    const timeout = 5.5 * 60 * 60 * 1000; // 5.5 hours
-    const startTime = Date.now();
+    const JOB_START_TIME = Date.now();
+    const MAX_JOB_TIME = 15 * 60 * 1000; // 4.5 hours total for the job
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
         // Note: We don't pass target_os/target_arch on Windows, it auto-detects
+        // npm run init runs WITHOUT timeout (exempt)
         if (currentStage === 'init') {
-            console.log('Running npm run init with --no-history...');
+            console.log('=== Stage: npm run init ===');
+            console.log('Running npm run init with --no-history (no timeout)...');
+            
             const initCode = await exec.exec('npm', ['run', 'init', '--', '--no-history'], {
                 cwd: braveDir,
-                timeout: timeout - (Date.now() - startTime),
                 ignoreReturnCode: true
             });
             
             if (initCode === 0) {
+                console.log('✓ npm run init completed successfully');
                 await fs.writeFile(markerFile, 'build');
                 currentStage = 'build';
             } else {
-                throw new Error('npm run init failed');
+                console.log(`✗ npm run init failed with code ${initCode}`);
+                // Stay in init stage to retry
             }
         }
 
-        // Stage 2: npm run build (compile Brave)
+        // Stage 2: npm run build (compile Brave - component build by default)
+        // Timeout = 4.5 hours - time already spent in this job
         if (currentStage === 'build') {
-            console.log('Running npm run build...');
+            const elapsedTime = Date.now() - JOB_START_TIME;
+            const remainingTime = MAX_JOB_TIME - elapsedTime;
             
-            // Configure build to be incremental
-            const buildCode = await exec.exec('npm', ['run', 'build'], {
-                cwd: braveDir,
-                timeout: 60*10,
-                ignoreReturnCode: true
-            });
+            console.log('=== Stage: npm run build ===');
+            console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
+            console.log(`Remaining time for build: ${(remainingTime / 3600000).toFixed(2)} hours`);
             
-            if (buildCode === 0) {
-                await fs.writeFile(markerFile, 'package');
-                currentStage = 'package';
-                buildSuccess = true;
+            if (remainingTime <= 0) {
+                console.log('⏱️ No time remaining in job - creating checkpoint');
             } else {
-                console.log('Build not yet complete, will continue in next stage');
+                console.log('Running npm run build (component build)...');
+                
+                const buildCode = await execWithTimeout('npm', ['run', 'build'], {
+                    cwd: braveDir,
+                    timeout: remainingTime
+                });
+                
+                if (buildCode === 0) {
+                    console.log('✓ npm run build completed successfully');
+                    await fs.writeFile(markerFile, 'package');
+                    currentStage = 'package';
+                    buildSuccess = true;
+                } else if (buildCode === 999) {
+                    console.log('⏱️ npm run build timed out - will resume in next stage');
+                    // Stay in build stage for next run
+                } else {
+                    console.log(`✗ npm run build failed with code ${buildCode}`);
+                    // Stay in build stage to retry
+                }
             }
         }
 
@@ -195,12 +284,13 @@ async function run() {
         // Save build state
         await new Promise(r => setTimeout(r, 5000));
         
-        // Compress critical build directories
+        // Compress critical build directories AND marker file
+        // Keep obj/ directory for incremental builds!
         const stateZip = path.join(workDir, 'build-state.zip');
         await exec.exec('7z', ['a', '-tzip', stateZip,
             path.join(workDir, 'src'),
-            '-mx=3', '-mtc=on', 
-            '-xr!*.git', '-xr!*.obj', '-xr!*.ilk', '-xr!*.pdb'], 
+            path.join(workDir, 'build-stage.txt'),
+            '-mx=3', '-mtc=on'], 
             {ignoreReturnCode: true});
 
         // Upload intermediate artifact
