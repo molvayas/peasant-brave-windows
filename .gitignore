@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+build-state.zip
+*.exe
+*.zip
+src/
+out/
+.gclient
+.gclient_entries
+

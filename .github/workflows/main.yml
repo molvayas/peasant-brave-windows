@@ -1,0 +1,272 @@
+name: Build Brave Browser
+on:  
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      brave_version:
+        description: 'Brave version tag (e.g., v1.71.121)'
+        required: true
+        type: string
+
+jobs:
+  build-1:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event.inputs.brave_version }}" -ne "") {
+            $VERSION = "${{ github.event.inputs.brave_version }}"
+          } else {
+            $VERSION = "${{ github.ref_name }}"
+          }
+          echo "BRAVE_VERSION=$VERSION" >> $env:GITHUB_OUTPUT
+          echo "Building Brave version: $VERSION"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: false
+          from_artifact: false
+          brave_version: ${{ steps.version.outputs.BRAVE_VERSION }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+      brave_version: ${{ steps.version.outputs.BRAVE_VERSION }}
+
+  build-2:
+    needs: build-1
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-1.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-1.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-3:
+    needs: build-2
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-2.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-2.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-4:
+    needs: build-3
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-3.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-3.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-5:
+    needs: build-4
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-4.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-4.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-6:
+    needs: build-5
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-5.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-5.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-7:
+    needs: build-6
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-6.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-6.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  build-8:
+    needs: build-7
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Init
+        run: Copy-Item -Path . -Destination "C:\peasant-brave-windows" -Recurse
+      - name: Setup Stage
+        run: npm install
+        working-directory: ./.github/actions/stage
+      - name: Run Stage
+        id: stage
+        uses: ./.github/actions/stage
+        with:
+          finished: ${{ needs.build-7.outputs.finished }}
+          from_artifact: true
+          brave_version: ${{ needs.build-7.outputs.brave_version }}
+    outputs:
+      finished: ${{ steps.stage.outputs.finished }}
+
+  publish-release:
+    needs: build-8
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: brave-browser
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: true
+          files: |
+            BraveBrowser*
+            brave-*
+
