@@ -183,7 +183,7 @@ async function run() {
 
     let buildSuccess = false;
     const JOB_START_TIME = Date.now();
-    const MAX_JOB_TIME = 315 * 60 * 1000; // 4.5 hours total for the job
+    const MAX_JOB_TIME = 285 * 60 * 1000; // 4.5 hours total for the job
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
