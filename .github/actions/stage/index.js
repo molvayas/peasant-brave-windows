@@ -92,6 +92,9 @@ async function execWithTimeout(command, args, options = {}) {
 async function run() {
     process.on('SIGINT', function() {
     });
+
+    const JOB_START_TIME = Date.now();
+    const MAX_BUILD_TIME = 300 * 60 * 1000; // 5 hours total for the build
     
     const finished = core.getBooleanInput('finished', {required: true});
     const from_artifact = core.getBooleanInput('from_artifact', {required: true});
@@ -182,8 +185,6 @@ async function run() {
     }
 
     let buildSuccess = false;
-    const JOB_START_TIME = Date.now();
-    const MAX_JOB_TIME = 285 * 60 * 1000; // 4.5 hours total for the job
 
     try {
         // Stage 1: npm run init (downloads Chromium and dependencies)
@@ -212,7 +213,7 @@ async function run() {
         // Timeout = 4.5 hours - time already spent in this job
         if (currentStage === 'build') {
             const elapsedTime = Date.now() - JOB_START_TIME;
-            let remainingTime = MAX_JOB_TIME - elapsedTime;
+            let remainingTime = MAX_BUILD_TIME - elapsedTime;
             
             console.log('=== Stage: npm run build ===');
             console.log(`Time elapsed in job: ${(elapsedTime / 3600000).toFixed(2)} hours`);
